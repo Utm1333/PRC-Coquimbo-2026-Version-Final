@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <title>PRC Coquimbo 2026 - Oficial Final</title>
+        
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        
+        <style>
+            html, body, #map { width: 100%; height: 100%; padding: 0; margin: 0; background: #fff; overflow: hidden; }
+
+            /* --- INFO BOX --- */
+            #texto {
+                position: fixed; bottom: 20px; left: 20px;
+                width: 300px; padding: 18px;
+                background: rgba(255, 255, 255, 0.95); border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000;
+                font-family: 'Segoe UI', Tahoma, sans-serif; border: 1px solid #ccc;
+                text-align: center; transition: all 0.4s ease;
+            }
+            #logo { display: block; width: 65px; margin: 0 auto 12px; }
+            #cerrarTexto { position: absolute; top: 8px; right: 8px; border: 0; background: none; cursor: pointer; color: #bbb; font-size: 18px; }
+            .hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
+
+            /* --- BOTÓN DE IMPRESIÓN --- */
+            .print-button {
+                background-color: #2c3e50; width: 38px; height: 38px;
+                display: flex; align-items: center; justify-content: center;
+                border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                cursor: pointer; color: #fff; font-size: 16px; transition: all 0.3s ease;
+            }
+            .print-button:hover { background-color: #34495e; transform: scale(1.05); color: #00d1b2; }
+
+            /* --- ESTILOS DE IMPRESIÓN --- */
+            @media print {
+                .leaflet-control-layers, .leaflet-control-zoom, .print-button, #cerrarTexto, .leaflet-control-scale { display: none !important; }
+                #texto { display: block !important; opacity: 1 !important; position: absolute !important; bottom: 20px !important; left: 20px !important; box-shadow: none !important; border: 1px solid #000 !important; transform: none !important; background: white !important; }
+                #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; }
+            }
+
+            /* --- SIMBOLOGÍA --- */
+            .leaflet-control-layers { border: none !important; box-shadow: 0 2px 12px rgba(0,0,0,0.15) !important; border-radius: 8px !important; }
+            .leaflet-control-layers-expanded { padding: 0 !important; background: #fff !important; min-width: 190px; overflow: hidden; }
+            .group-header { background: #2c3e50; color: white; padding: 8px 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+            .layer-group-container { max-height: 500px; opacity: 1; transition: max-height 0.4s ease-in-out, opacity 0.3s ease; overflow: hidden; }
+            .layer-group-container.collapsed { max-height: 0; opacity: 0; }
+            .layer-item { display: flex; align-items: center; padding: 6px 12px; font-size: 11px; color: #444; border-bottom: 1px solid #f4f4f4; cursor: pointer; text-align: left; }
+            .layer-item:hover { background: #f9f9f9; }
+            .layer-item input { margin-right: 10px; transform: scale(0.9); }
+
+            @media (max-width: 600px) {
+                #texto { width: 85%; max-width: 320px; left: 50%; bottom: 15px; transform: translateX(-50%); padding: 15px; }
+                .hidden { transform: translate(-50%, 20px) !important; }
+            }
+        </style>
+    </head>
+    <body>
+        
+        <div id="map">
+            <div id="texto">
+                <button id="cerrarTexto" title="Cerrar">✕</button>
+                <img id="logo" src="images/logo.png" alt="Logo">
+                <strong style="font-size:16px; color:#2c3e50; display:block; margin-bottom:5px;">PRC Coquimbo 2026</strong>
+                <p style="margin:0; color:#555; font-size:13px; line-height:1.4;">
+                    Visualizador interactivo de Instrumentos de Planificación y Riesgos Territoriales.
+                </p>
+            </div>
+        </div>
+
+        <script src="js/leaflet.js"></script>
+        <script src="data/Zonas_Vf_0.js"></script>
+        <script src="data/Subzonas_Vf_1.js"></script>
+        <script src="data/AR3_RemocinMasa_Vf_8.js"></script>
+        <script src="data/AR2_Tsunami_Vf_9.js"></script>
+        <script src="data/AR1_Inundacin_Vf_10.js"></script>
+        <script src="data/Vialidad_Estructurante_Vf_12.js"></script>
+
+        <script>
+        var map = L.map('map', { center: [-29.952, -71.336], zoom: 14, zoomControl: false });
+
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        var googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}');
+
+        L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+
+        // --- DICCIONARIO COMPLETO RECONSTRUIDO ---
+        function style_Zonas(f) {
+            var colors = {
+                'AVN': 'rgba(119,181,131,0.45)', 'AVP1': 'rgba(204,188,180,0.45)', 'AVP2': 'rgba(215,176,158,0.45)',
+                'AVP3': 'rgba(245,207,191,0.45)', 'ZAV': 'rgba(201,234,208,0.45)', 'ZCH-1': 'rgba(151,195,188,0.45)',
+                'ZCH-2': 'rgba(146,92,65,0.45)', 'ZCH1': 'rgba(151,195,188,0.45)', 'ZCH15a': 'rgba(255,204,153,0.45)',
+                'ZCH1a': 'rgba(168,168,0,0.45)', 'ZCH1b': 'rgba(210,187,176,0.45)', 'ZCH3': 'rgba(234,161,83,0.45)',
+                'ZCH4': 'rgba(210,38,75,0.45)', 'ZCH5': 'rgba(142,92,47,0.45)', 'ZE1': 'rgba(218,221,244,0.45)',
+                'ZE2': 'rgba(181,213,227,0.45)', 'ZE3': 'rgba(206,237,236,0.45)', 'ZE4': 'rgba(178,127,255,0.45)',
+                'ZEBC': 'rgba(255,178,204,0.45)', 'ZEBC1': 'rgba(203,213,230,0.45)', 'ZEBC2': 'rgba(215,226,244,0.45)',
+                'ZI1': 'rgba(230,208,230,0.45)', 'ZI2': 'rgba(230,208,230,0.45)', 'ZI3': 'rgba(203,193,203,0.45)',
+                'ZI4': 'rgba(194,179,230,0.45)', 'ZP1': 'rgba(226,193,248,0.45)', 'ZP2': 'rgba(255,190,232,0.45)',
+                'ZP2-1': 'rgba(232,190,255,0.45)', 'ZP3': 'rgba(178,178,178,0.45)', 'ZPBC': 'rgba(251,245,221,0.45)',
+                'ZPI': 'rgba(212,233,248,0.45)', 'ZU10': 'rgba(169,120,92,0.45)', 'ZU11': 'rgba(248,240,195,0.45)',
+                'ZU12': 'rgba(245,216,183,0.45)', 'ZU13': 'rgba(245,192,79,0.45)', 'ZU14': 'rgba(216,206,173,0.45)',
+                'ZU15': 'rgba(239,228,190,0.45)', 'ZU16': 'rgba(230,193,167,0.45)', 'ZU17': 'rgba(210,140,219,0.45)',
+                'ZU3': 'rgba(238,159,12,0.45)', 'ZU4': 'rgba(243,213,132,0.45)', 'ZU5': 'rgba(246,232,192,0.45)',
+                'ZU6': 'rgba(248,195,157,0.45)', 'ZU7': 'rgba(253,178,152,0.45)', 'ZU8': 'rgba(255,204,102,0.45)',
+                'ZU9': 'rgba(255,255,178,0.45)', 'ZU9a': 'rgba(185,161,131,0.45)', 'ZU9b': 'rgba(224,206,134,0.45)',
+                'ZVPC': 'rgba(255,255,255,0.45)', 'ZU15a': 'rgba(153,194,255,0.45)', 'ZU5-A': 'rgba(235,113,142,0.45)',
+                'ZU5-B': 'rgba(63,126,132,0.45)', 'ZU5-D': 'rgba(204,84,213,0.45)', 'ZCH-5A': 'rgba(183,24,16,0.45)',
+                'ZU7-A': 'rgba(246,146,122,0.45)', 'ZAVPC-A': 'rgba(135,252,151,0.45)', 'ZE2-2': 'rgba(78,159,251,0.45)',
+                'ZE3-A': 'rgba(56,36,153,0.45)', 'ZU6-A': 'rgba(213,128,31,0.45)', 'ZE2-B': 'rgba(78,159,251,0.45)',
+                'ZE2-A': 'rgba(87,193,255,0.45)', 'ZE4-A': 'rgba(80,126,205,0.45)', 'ZU16-A': 'rgba(246,112,64,0.45)',
+                'ZU3-A': 'rgba(207,192,242,0.45)', 'ZU5-C': 'rgba(82,168,159,0.45)', 'ZU9-A': 'rgba(211,190,170,0.45)',
+                'ZU9-B': 'rgba(238,188,36,0.45)', 'ZAVPC': 'rgba(92,137,68,0.45)', 'ZU13-A': 'rgba(178,88,29,0.45)',
+                'AVP2-A': 'rgba(235,213,159,0.45)'
+            };
+            return { fillColor: colors[f.properties['ZONAS_2023']] || 'rgba(150,150,150,0.45)', fillOpacity: 1, color: 'rgba(0,0,0,0.4)', weight: 1.0 };
+        }
+
+        // --- CAPAS ---
+        var layer_Zonas = L.geoJson(json_Zonas_Vf_0, { 
+            style: style_Zonas, 
+            onEachFeature: (f,l) => {
+                l.on({
+                    mouseover: (e) => { e.target.setStyle({ weight: 3, color: '#fff' }); },
+                    mouseout: (e) => { layer_Zonas.resetStyle(e.target); },
+                    click: (e) => L.popup().setLatLng(e.latlng).setContent("<div style='text-align:center'><b>Zona:</b> "+f.properties['ZONAS_2023']+"</div>").openOn(map)
+                });
+            }
+        });
+        
+        var layer_Sub = L.geoJson(json_Subzonas_Vf_1, { style: { color: 'rgba(35,35,35,0.8)', weight: 3, dashArray: '10,8' } });
+        var layer_Vial = L.geoJson(json_Vialidad_Estructurante_Vf_12, { style: (f) => {
+            var t = f.properties['TIPO'];
+            return { color: (t === 'EXISTENTE' ? 'rgba(0,93,230,1.0)' : 'rgba(230,0,0,1.0)'), weight: 2.5, dashArray: (t === 'ENSANCHE' ? '10,10' : '') };
+        }});
+        
+        var layer_Masa = L.geoJson(json_AR3_RemocinMasa_Vf_8, { style: { color: 'rgba(160,28,4,1.0)', weight: 1.5, fillOpacity: 0.4, fillColor: 'rgba(160,28,4,1.0)' }});
+        var layer_Tsu = L.geoJson(json_AR2_Tsunami_Vf_9, { style: { color: '#008b8b', weight: 2.5, fillOpacity: 0.35, fillColor: '#20b2aa', dashArray: '5,5' }});
+        var layer_Inun = L.geoJson(json_AR1_Inundacin_Vf_10, { style: { color: 'rgba(0,255,255,1.0)', weight: 2, fillOpacity: 0.25, fillColor: 'rgba(0,255,255,1.0)' }});
+
+        // --- BOTÓN IMPRESIÓN ---
+        var PrintControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                var btn = L.DomUtil.create('div', 'print-button');
+                btn.innerHTML = '<i class="fas fa-print"></i>';
+                btn.onclick = function() { window.print(); };
+                return btn;
+            }
+        });
+        map.addControl(new PrintControl());
+
+        // --- CONTROL CAPAS ---
+        var CustomControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function() {
+                var div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control-layers-expanded');
+                var createItem = (name, layer, active, container) => {
+                    var item = L.DomUtil.create('label', 'layer-item', container);
+                    var chk = document.createElement('input');
+                    chk.type = 'checkbox'; chk.checked = active;
+                    if(active) layer.addTo(map);
+                    item.appendChild(chk);
+                    item.appendChild(document.createTextNode(name));
+                    chk.onchange = () => chk.checked ? layer.addTo(map) : map.removeLayer(layer);
+                };
+                var createBase = (name, layer, active, container) => {
+                    var item = L.DomUtil.create('label', 'layer-item', container);
+                    var rad = document.createElement('input');
+                    rad.type = 'radio'; rad.name = 'base'; rad.checked = active;
+                    item.appendChild(rad);
+                    item.appendChild(document.createTextNode(name));
+                    rad.onchange = () => { map.removeLayer(osm); map.removeLayer(googleSat); layer.addTo(map); };
+                };
+
+                L.DomUtil.create('div', 'group-header', div).innerHTML = 'Mapa Base';
+                var cBase = L.DomUtil.create('div', 'layer-group-container', div);
+                createBase("Calles (OSM)", osm, true, cBase);
+                createBase("Satélite", googleSat, false, cBase);
+
+                var hPlan = L.DomUtil.create('div', 'group-header', div);
+                hPlan.innerHTML = 'Planificación <span>▾</span>';
+                var cPlan = L.DomUtil.create('div', 'layer-group-container', div);
+                createItem("Zonificación", layer_Zonas, true, cPlan);
+                createItem("Subzonas", layer_Sub, true, cPlan);
+                createItem("Vialidad Estructurante", layer_Vial, true, cPlan);
+
+                var hRiesgo = L.DomUtil.create('div', 'group-header', div);
+                hRiesgo.innerHTML = 'Riesgos <span>▸</span>';
+                var cRiesgo = L.DomUtil.create('div', 'layer-group-container collapsed', div);
+                createItem("AR3 Remoción Masa", layer_Masa, false, cRiesgo);
+                createItem("AR2 Tsunami", layer_Tsu, false, cRiesgo);
+                createItem("AR1 Inundación", layer_Inun, false, cRiesgo);
+
+                hPlan.onclick = () => { cPlan.classList.toggle('collapsed'); hPlan.querySelector('span').innerHTML = cPlan.classList.contains('collapsed') ? '▸' : '▾'; };
+                hRiesgo.onclick = () => { cRiesgo.classList.toggle('collapsed'); hRiesgo.querySelector('span').innerHTML = cRiesgo.classList.contains('collapsed') ? '▸' : '▾'; };
+                return div;
+            }
+        });
+
+        map.addControl(new CustomControl());
+        document.getElementById('cerrarTexto').onclick = () => document.getElementById('texto').classList.add('hidden');
+
+        </script>
+    </body>
+</html>
